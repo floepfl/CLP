@@ -1,0 +1,4 @@
+object Arithmetic {
+    val c: Int = 3 + 3;
+    Std.printInt(c)
+}
