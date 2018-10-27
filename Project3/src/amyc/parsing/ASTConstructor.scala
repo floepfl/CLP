@@ -30,6 +30,8 @@ class ASTConstructor {
     }
   }
 
+  //'ModuleDef ::= OBJECT() ~ 'Id ~ LBRACE() ~ 'Definitions ~ 'OptExpr ~ RBRACE() ~ EOF(),
+
   def constructName(ptree: NodeOrLeaf[Token]): (String, Positioned) = {
     ptree match {
       case Node('Id ::= _, List(Leaf(id@ID(name)))) =>
@@ -86,6 +88,7 @@ class ASTConstructor {
         TypeTree(ClassType(qname)).setPos(pos)
     }
   }
+
 
   def constructQname(pTree: NodeOrLeaf[Token]): (QualifiedName, Positioned) = {
     pTree match {

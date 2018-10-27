@@ -13,7 +13,22 @@ import Tokens._
 class ASTConstructorLL1 extends ASTConstructor {
 
   // TODO: Override methods from ASTConstructor as needed
-  
+  override def constructQname(pTree: NodeOrLeaf[Token]): (QualifiedName, Positioned) = {
+    pTree match {
+      case Node('QName ::= _, List(id, q)) =>
+        val name = constructName(id)
+        constructQname2(q, name)
+    }
+  }
+
+  def constructQname2(pTree: NodeOrLeaf[Token], name: (String, Positioned)) : (QualifiedName, Positioned) = {
+    pTree match {
+      case Node('QName2 ::= ('Id :: _), List(_, id2)) =>
+        val (name2, pos2) = constructName(id2)
+        (QualifiedName(Some(name._1), name2), pos2)
+      case _ => (QualifiedName(None, name._1), name._2)
+    }
+  }
   /* ... */
   
 

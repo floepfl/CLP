@@ -8,7 +8,7 @@ import grammarcomp.grammar._
 import grammarcomp.parsing._
 import amyc.utils._
 import ast.NominalTreeModule._
-import Tokens._
+import Tokens.{LPAREN, _}
 
 // The parser for Amy
 // Absorbs tokens from the Lexer and then uses grammarcomp to generate parse trees.
@@ -71,57 +71,46 @@ object Parser extends Pipeline[Stream[Token], Program] {
     'Param ::= 'Id ~ COLON() ~ 'Type,
     'OptExpr ::= 'Expr | epsilon(),
     'Type ::= INT() | STRING() | BOOLEAN() | UNIT() | 'QName,
-    'QName ::= 'Id ~ 'Qname2,
-    'QName2 ::= DOT() ~ 'Id ~ 'Qname3 | 'QName3,
-    'QName3 ::= LPAREN() ~ 'Args ~ RPAREN() | epsilon(),
-    'Expr ::= VAL() ~ 'Param ~ EQSIGN() ~ 'Expr ~ SEMICOLON() ~ 'Expr | SEMICOLON() | 'Expr2Prime
-    'Expr2 ::= 'Expr2prime
-    'Expr2prime ::= MATCH() ~ LBRACE() ~ 'Cases ~ RBRACE() | 'Expr3
-    'Expr3Seq ::= OR() ~ 'Expr | 'Expr4 | epsilon()
-    'Expr3 ::= 'Expr4 ~ 'Expr3Seq
-    'Expr4Seq ::= AND() ~ 'Expr | 'Expr5
-    'Expr4 ::= Expr5 ~ 
-    'Expr5 ::= EQUALS() ~ 'Expr | 'Expr6
-  _ 'Expr6 ::= LESSTHAN() ~ 'Expr | LESSEQUALS() ~ 'Expr | 'Expr7
-    'Expr7Seq ::= PLUS() ~ 'Expr7 | MINUS() ~ 'Expr7 | CONCAT() 'Expr7 | epsilon()
-    'Expr7 ::= 'Expr8 ~ 'Expr7Seq
-    'Expr8Seq ::= TIMES() ~ 'Expr8 | DIV() ~ 'Expr8 | MOD() ~ 'Expr8 | epsilon()
-    'Expr8 ::= 'Expr9 ~ 'Expr8Seq
-    'Expr9Seq ::= MINUS
-    'Expr9 ::= 'Expr10 ~ 'Expr9Seq
-    'Expr ::= IF() ~ LPAREN() ~ 'Expr ~ RPAREN() ~ LBRACE() ~ 'Expr ~ RBRACE() ~ ELSE() ~ LBRACE() ~ 'Expr ~ RBRACE() |
+    'QName ::= 'Id ~ 'QName2,
+    'QName2 ::= DOT() ~ 'Id | epsilon(),
+    'Expr ::= VAL() ~ 'Param ~ EQSIGN() ~ 'Expr2 ~ SEMICOLON() ~ 'Expr2 | SEMICOLON() ~ 'Expr2 | 'Expr2,
+    'Expr2 ::= 'Expr3 ~'Expr2Seq,
+    'Expr2Seq ::= MATCH() ~ LBRACE() ~ 'Cases ~ RBRACE() | epsilon(),
+    'Expr3 ::= 'Expr4 ~ 'Expr3Seq,
+    'Expr3Seq ::= OR() ~ 'Expr3 | epsilon(),
+    'Expr4 ::= 'Expr5 ~ 'Expr4Seq,
+    'Expr4Seq ::= AND() ~ 'Expr4 | epsilon(),
+    'Expr5 ::= 'Expr6 ~ 'Expr5Seq,
+    'Expr5Seq ::= EQUALS() ~ 'Expr5 | epsilon(),
+    'Expr6 ::= 'Expr7 ~ 'Expr6Seq,
+    'Expr6Seq ::= LESSTHAN() ~ 'Expr6 | LESSEQUALS() ~ 'Expr6 | epsilon(),
+    'Expr7 ::= 'Expr8 ~ 'Expr7Seq,
+    'Expr7Seq ::= PLUS() ~ 'Expr7 | MINUS() ~ 'Expr7 | CONCAT() ~ 'Expr7 | epsilon(),
+    'Expr8 ::= 'Expr9 ~ 'Expr8Seq,
+    'Expr8Seq ::= TIMES() ~ 'Expr8 | DIV() ~ 'Expr8 | MOD() ~ 'Expr8 | epsilon(),
+    'Expr9 ::= MINUS() ~ 'Expr10 | BANG() ~ 'Expr10 | 'Expr10,
+    'Expr10 ::= IF() ~ LPAREN() ~ 'Expr ~ RPAREN() ~ LBRACE() ~ 'Expr ~ RBRACE() ~ ELSE() ~ LBRACE() ~ 'Expr ~ RBRACE() |
       ERROR() ~ LPAREN() ~ 'Expr ~ RPAREN() |
-
-  'Expr ::= //Id |
-      'QName |
-      'Literal |
-      'Expr ~ 'BinOp ~ 'Expr |
-      BANG() ~ 'Expr |
-      MINUS() ~ 'Expr |
-    //  'QName ~ LPAREN() ~ 'Args ~ RPAREN() |
-      'Expr ~ SEMICOLON() ~ 'Expr |
-      VAL() ~ 'Param ~ EQSIGN() ~ 'Expr ~ SEMICOLON() ~ 'Expr |
-      IF() ~ LPAREN() ~ 'Expr ~ RPAREN() ~ LBRACE() ~ 'Expr ~ RBRACE() ~ ELSE() ~ LBRACE() ~ 'Expr ~ RBRACE() |
-      'Expr ~ MATCH() ~ LBRACE() ~ 'Cases ~ RBRACE() |
-      ERROR() ~ LPAREN() ~ 'Expr ~ RPAREN() |
-      LPAREN() ~ 'Expr ~ RPAREN(),
-    'Literal ::= TRUE() | FALSE() | LPAREN() ~ RPAREN() | INTLITSENT | STRINGLITSENT,
-    'BinOp ::= PLUS() | MINUS() | TIMES() | DIV() | MOD() | LESSTHAN() | LESSEQUALS() |
-      AND() | OR() | EQUALS() | CONCAT(),
+      'QName ~ LPAREN() ~ 'Args ~ RPAREN() | LPAREN() ~ 'ExprParen | 'Literal,
+    'Id1 ::= 'Id ~ 'Id2,
+    'Id2 ::= DOT() ~ 'Id | epsilon(),
+    'Literal ::= TRUE() | FALSE() | INTLITSENT | STRINGLITSENT,
+    'ExprParen ::= 'Expr ~ RPAREN() | RPAREN(),
     'Cases ::= CASE() ~ 'Pattern ~ RARROW() ~ 'Expr ~ 'Cases2,
     'Cases2 ::= epsilon() | 'Cases,
-    'Pattern ::= UNDERSCORE() | 'Literal | 'Id | 'QName ~ LPAREN() ~ 'Patterns ~ RPAREN(),
+    'Pattern ::= UNDERSCORE() | 'Literal | 'Id1 ~ 'Pattern2,
+    'Pattern2 ::= epsilon() |  LPAREN() ~ 'Patterns ~ RPAREN(),
     'Patterns ::= epsilon() | 'Pattern ~ 'PatternList,
     'PatternList ::= epsilon() | COMMA() ~ 'Pattern ~ 'PatternList,
     'Args ::= epsilon() | 'Expr ~ 'ExprList,
     'ExprList ::= epsilon() | COMMA() ~ 'Expr ~ 'ExprList,
-    'Id ::= IDSENT
+    'Id ::= IDSENT,
   ))
 
   def run(ctx: Context)(tokens: Stream[Token]): Program = {
     // TODO: Switch to LL1 when you are ready
-    //val (grammar, constructor) = (amyGrammarLL1, new ASTConstructorLL1)
-    val (grammar, constructor) = (amyGrammar, new ASTConstructor)
+    val (grammar, constructor) = (amyGrammarLL1, new ASTConstructorLL1)
+    //val (grammar, constructor) = (amyGrammar, new ASTConstructor)
 
     import ctx.reporter._
     implicit val gc = new GlobalContext()
@@ -129,7 +118,7 @@ object Parser extends Pipeline[Stream[Token], Program] {
 
     GrammarUtils.isLL1WithFeedback(grammar) match {
       case InLL1() =>
-        // info("Grammar is in LL1")
+        //info("Grammar is in LL1")
       case other =>
         warning(other)
     }
