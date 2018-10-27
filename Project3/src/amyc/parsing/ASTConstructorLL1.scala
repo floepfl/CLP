@@ -5,6 +5,7 @@ import grammarcomp.parsing._
 import utils.Positioned
 import ast.NominalTreeModule._
 import Tokens._
+import amyc.ast.NominalTreeModule
 
 // Implements the translation from parse trees to ASTs for the LL1 grammar,
 // that is, this should correspond to Parser.amyGrammarLL1.
@@ -28,6 +29,13 @@ class ASTConstructorLL1 extends ASTConstructor {
         (QualifiedName(Some(name._1), name2), pos2)
       case _ => (QualifiedName(None, name._1), name._2)
     }
+  }
+
+  override def constructExpr(ptree: NodeOrLeaf[Token]): Expr = {
+    ptree match {
+      case Node('Expr ::= (VAL() :: _), List(Leaf(v), )
+    }
+
   }
   /* ... */
   
