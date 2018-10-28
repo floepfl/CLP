@@ -86,12 +86,13 @@ object Parser extends Pipeline[Stream[Token], Program] {
     'Expr6Seq ::= LESSTHAN() ~ 'Expr6 | LESSEQUALS() ~ 'Expr6 | epsilon(),
     'Expr7 ::= 'Expr8 ~ 'Expr7Seq,
     'Expr7Seq ::= PLUS() ~ 'Expr7 | MINUS() ~ 'Expr7 | CONCAT() ~ 'Expr7 | epsilon(),
-    'Expr8 ::= 'Expr9 ~ 'Expr8Seq,
+    'Expr8 ::= 'Expr9Seq ~ 'Expr8Seq,
     'Expr8Seq ::= TIMES() ~ 'Expr8 | DIV() ~ 'Expr8 | MOD() ~ 'Expr8 | epsilon(),
-    'Expr9 ::= MINUS() ~ 'Expr10 | BANG() ~ 'Expr10 | 'Expr10,
-    'Expr10 ::= IF() ~ LPAREN() ~ 'ExprSeq ~ RPAREN() ~ LBRACE() ~ 'ExprSeq ~ RBRACE() ~ ELSE() ~ LBRACE() ~ 'ExprSeq ~ RBRACE() |
+    'Expr9Seq ::= MINUS() ~ 'Expr10 | BANG() ~ 'Expr10 | 'Expr10,
+    'Expr10 ::= IF() ~ LPAREN() ~ 'ExprSeq ~ RPAREN() ~ LBRACE() ~ 'ExprSeq ~ RBRACE() ~ 'ExprIf |
       ERROR() ~ LPAREN() ~ 'ExprSeq ~ RPAREN() |
       'QName ~ LPAREN() ~ 'Args ~ RPAREN() | LPAREN() ~ 'ExprParen | 'Literal,
+    'ExprIf ::= ELSE() ~ LBRACE() ~ 'ExprSeq ~ RBRACE() | epsilon(),
     'Id1 ::= 'Id ~ 'Id2,
     'Id2 ::= DOT() ~ 'Id | epsilon(),
     'Literal ::= TRUE() | FALSE() | INTLITSENT | STRINGLITSENT,

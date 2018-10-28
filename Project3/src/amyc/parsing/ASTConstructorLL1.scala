@@ -48,9 +48,39 @@ class ASTConstructorLL1 extends ASTConstructor {
       case Node('Expr2Seq ::= (MATCH() :: _), List(Leaf(m), _, cases, _)) =>
         Match(constructExpr(ptreeExpr), constructList1(cases, constructCase))
       case Node('Expr3Seq ::= (OR():: _), List(Leaf(or), expr3)) =>
-        constructOp(or)(constructExpr(ptreeExpr), constructExpr(expr3)).setPos(ptreeExpr)
+        tokenToExprAndSetPos(ptreeExpr, expr3, or)
+      case Node('Expr4Seq ::= (AND() :: _), List(Leaf(and), expr4)) =>
+        tokenToExprAndSetPos(ptreeExpr, expr4, and)
+      case Node('Expr5Seq ::= (EQUALS() :: _), List(Leaf(equals), expr5)) =>
+        tokenToExprAndSetPos(ptreeExpr, expr5, equals)
+      case Node('Expr6Seq ::= (LESSTHAN() :: _), List(Leaf(lessThan), expr6)) =>
+        tokenToExprAndSetPos(ptreeExpr, expr6, lessThan)
+      case Node('Expr6Seq ::= (LESSEQUALS() :: _), List(Leaf(lessEquals), expr6)) =>
+        tokenToExprAndSetPos(ptreeExpr, expr6, lessEquals)
+      case Node('Expr7Seq ::= (PLUS() :: _), List(Leaf(plus), expr7)) =>
+        tokenToExprAndSetPos(ptreeExpr, expr7, plus)
+      case Node('Expr7Seq ::= (MINUS() :: _), List(Leaf(minus), expr7)) =>
+        tokenToExprAndSetPos(ptreeExpr, expr7, minus)
+      case Node('Expr7Seq ::= (CONCAT() :: _), List(Leaf(concat), expr7)) =>
+        tokenToExprAndSetPos(ptreeExpr, expr7, concat)
+      case Node('Expr8Seq ::= (TIMES() :: _), List(Leaf(times), expr8)) =>
+        tokenToExprAndSetPos(ptreeExpr, expr8, times)
+      case Node('Expr8Seq ::= (DIV() :: _), List(Leaf(div), expr8)) =>
+        tokenToExprAndSetPos(ptreeExpr, expr8, div)
+      case Node('Expr8Seq ::= (MOD() :: _), List(Leaf(mod), expr8)) =>
+        tokenToExprAndSetPos(ptreeExpr, expr8, mod)
+      case Node('Expr9Seq ::= (MINUS() :: _), List(Leaf(minus), expr10)) =>
+        Neg()
+      case Node('Expr10 ::= (IF() :: _), List(Leaf(i), _, eSeq2, _, _, eSeq2)) =>
+        tokenToExprAndSetPos(ptreeExpr, expr8, times)
       case _ => e
     }
+  }
+
+  def tokenToExprAndSetPos(ptreeLeft: NodeOrLeaf[Token], ptreeRight: NodeOrLeaf[Token], token: Token): Expr = {
+    val eLeft = constructExpr(ptreeLeft)
+    val eRight = constructExpr(ptreeLeft)
+    tokenToExpr(token)(eLeft, eRight).setPos(eLeft)
   }
 
   def constructExpr3Seq(ptree: NodeOrLeaf[Token], e: Expr): Expr = {
