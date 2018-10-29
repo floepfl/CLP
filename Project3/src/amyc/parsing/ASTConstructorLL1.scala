@@ -5,7 +5,6 @@ import grammarcomp.parsing._
 import utils.Positioned
 import ast.NominalTreeModule._
 import Tokens._
-import amyc.ast.NominalTreeModule
 
 // Implements the translation from parse trees to ASTs for the LL1 grammar,
 // that is, this should correspond to Parser.amyGrammarLL1.
@@ -33,59 +32,102 @@ class ASTConstructorLL1 extends ASTConstructor {
 
   override def constructExpr(ptree: NodeOrLeaf[Token]): Expr = {
     ptree match {
-      case Node(_ ::= _, List(expr, exprSeq)) =>
-        constructExprSeq(expr, exprSeq)
-    }
-  }
-
-
-  def constructExprSeq(ptreeExpr: NodeOrLeaf[Token], ptreeExprSeq: NodeOrLeaf[Token]): Expr = {
-    ptreeExprSeq match {
+      case Node('ExprSeq ::= _, List(expr2, expr)) =>
+        constructExprSemicolon(expr2, expr)
       case Node('ExprSeq ::= (VAL() :: _), List(Leaf(v), param, _, value, _, body)) =>
         Let(constructParam(param), constructExpr(value), constructExpr(body)).setPos(v)
-      case Node('ExprSeq ::= (SEMICOLON() :: _), List(Leaf(s), expr2)) =>
-
-      case Node('Expr2Seq ::= (MATCH() :: _), List(Leaf(m), _, cases, _)) =>
-        Match(constructExpr(ptreeExpr), constructList1(cases, constructCase))
-      case Node('Expr3Seq ::= (OR():: _), List(Leaf(or), expr3)) =>
-        tokenToExprAndSetPos(ptreeExpr, expr3, or)
-      case Node('Expr4Seq ::= (AND() :: _), List(Leaf(and), expr4)) =>
-        tokenToExprAndSetPos(ptreeExpr, expr4, and)
-      case Node('Expr5Seq ::= (EQUALS() :: _), List(Leaf(equals), expr5)) =>
-        tokenToExprAndSetPos(ptreeExpr, expr5, equals)
-      case Node('Expr6Seq ::= (LESSTHAN() :: _), List(Leaf(lessThan), expr6)) =>
-        tokenToExprAndSetPos(ptreeExpr, expr6, lessThan)
-      case Node('Expr6Seq ::= (LESSEQUALS() :: _), List(Leaf(lessEquals), expr6)) =>
-        tokenToExprAndSetPos(ptreeExpr, expr6, lessEquals)
-      case Node('Expr7Seq ::= (PLUS() :: _), List(Leaf(plus), expr7)) =>
-        tokenToExprAndSetPos(ptreeExpr, expr7, plus)
-      case Node('Expr7Seq ::= (MINUS() :: _), List(Leaf(minus), expr7)) =>
-        tokenToExprAndSetPos(ptreeExpr, expr7, minus)
-      case Node('Expr7Seq ::= (CONCAT() :: _), List(Leaf(concat), expr7)) =>
-        tokenToExprAndSetPos(ptreeExpr, expr7, concat)
-      case Node('Expr8Seq ::= (TIMES() :: _), List(Leaf(times), expr8)) =>
-        tokenToExprAndSetPos(ptreeExpr, expr8, times)
-      case Node('Expr8Seq ::= (DIV() :: _), List(Leaf(div), expr8)) =>
-        tokenToExprAndSetPos(ptreeExpr, expr8, div)
-      case Node('Expr8Seq ::= (MOD() :: _), List(Leaf(mod), expr8)) =>
-        tokenToExprAndSetPos(ptreeExpr, expr8, mod)
+      case Node('Expr2 ::= _, List(expr3, expr2Seq)) =>
+        constructExprMatch(expr3, expr2Seq)
+      case Node('Expr3 ::= _, List(expr4, expr3Seq)) =>
+        constructOpExpr(constructExpr(expr4), expr3Seq)
+      case Node('Expr4 ::= _, List(expr5, expr4Seq)) =>
+        constructOpExpr(constructExpr(expr5), expr4Seq)
+      case Node('Expr5 ::= _, List(expr6, expr5Seq)) =>
+        constructOpExpr(constructExpr(expr6), expr5Seq)
+      case Node('Expr6 ::= _, List(expr7, expr6Seq)) =>
+        constructOpExpr(constructExpr(expr7), expr6Seq)
+      case Node('Expr7 ::= _, List(expr8, expr7Seq)) =>
+        constructOpExpr(constructExpr(expr8), expr7Seq)
+      case Node('Expr8 ::= _, List(expr9Seq, expr8Seq)) =>
+        constructOpExpr(constructExpr(expr9Seq), expr8Seq)
       case Node('Expr9Seq ::= (MINUS() :: _), List(Leaf(minus), expr10)) =>
-        Neg()
-      case Node('Expr10 ::= (IF() :: _), List(Leaf(i), _, eSeq2, _, _, eSeq2)) =>
-        tokenToExprAndSetPos(ptreeExpr, expr8, times)
-      case _ => e
+        Neg(constructExpr(expr10)).setPos(minus)
+      case Node('Expr9Seq ::= (BANG() :: _), List(Leaf(bt), expr10)) =>
+        Not(constructExpr(expr10)).setPos(bt)
+      case Node('Expr9Seq ::= _, List(expr10)) =>
+        constructExpr(expr10)
+      case Node('Expr10 ::= (IF() :: _), List(Leaf(it), _, cond, _, _, thenn, _, _, _, elze, _)) =>
+        Ite(
+          constructExpr(cond),
+          constructExpr(thenn),
+          constructExpr(elze)
+        ).setPos(it)
+      case Node('Expr10 ::= (ERROR() :: _), List(Leaf(ert), _, msg, _)) =>
+        Error(constructExpr(msg)).setPos(ert)
+      case Node('Expr10 ::= ('Id :: _), List(id, expr11)) =>
+        constructExpr11(id, expr11)
+      case Node('Expr10 ::= List('Literal), List(lit)) =>
+        constructLiteral(lit)
+      case Node('Expr10 ::= (LPAREN() :: _), List(Leaf(l), exprParen)) =>
+        constructExprParen(exprParen).setPos(l)
     }
   }
 
-  def tokenToExprAndSetPos(ptreeLeft: NodeOrLeaf[Token], ptreeRight: NodeOrLeaf[Token], token: Token): Expr = {
-    val eLeft = constructExpr(ptreeLeft)
-    val eRight = constructExpr(ptreeLeft)
-    tokenToExpr(token)(eLeft, eRight).setPos(eLeft)
+  def constructExprParen(ptreeSeq: NodeOrLeaf[Token]): Expr = {
+    ptreeSeq match {
+      case Node('ExprParen ::= ('ExprSeq :: _), List(exprSeq, _)) =>
+        constructExpr(exprSeq)
+      case _ => UnitLiteral()
+    }
   }
 
-  def constructExpr3Seq(ptree: NodeOrLeaf[Token], e: Expr): Expr = {
-    ptree
+  def constructExprSemicolon(ptreeLeft: NodeOrLeaf[Token], ptreeSeq: NodeOrLeaf[Token]): Expr = {
+    ptreeSeq match {
+      case Node('Expr ::= (SEMICOLON() :: _), List(s, ptreeRight)) =>
+        val exprLeft = constructExpr(ptreeLeft)
+        Sequence(exprLeft, constructExpr(ptreeRight)).setPos(exprLeft)
+      case _ =>
+        val exprLeft = constructExpr(ptreeLeft)
+        exprLeft.setPos(exprLeft)
+    }
   }
+
+  def constructExprMatch(ptreeLeft: NodeOrLeaf[Token], ptreeSeq: NodeOrLeaf[Token]): Expr = {
+    ptreeSeq match {
+      case Node('Expr2Seq ::= (MATCH() :: _), List(_, _, cases, _)) =>
+        val exprLeft = constructExpr(ptreeLeft)
+        Match(exprLeft, constructList1(cases, constructCase)).setPos(exprLeft)
+      case _ =>
+        val exprLeft = constructExpr(ptreeLeft)
+        exprLeft.setPos(exprLeft)
+    }
+  }
+
+  def constructExpr11(ptreeLeft: NodeOrLeaf[Token], ptreeSeq: NodeOrLeaf[Token]): Expr = {
+    ptreeSeq match {
+      case Node('Expr11 ::= ('QName2 :: _), List(qname,_ , as, _)) =>
+          val(name, pos) = constructQname2(qname, constructName(ptreeLeft))
+          val args = constructList(as, constructExpr, hasComma = true)
+          Call(name, args).setPos(pos)
+      case _  =>
+          val(name, pos) = constructName(ptreeLeft)
+          Variable(name).setPos(pos)
+    }
+  }
+
+  override def constructLiteral(pTree: NodeOrLeaf[Token]): Literal[_] = {
+    pTree match {
+      case Node('Literal ::= List(INTLITSENT), List(Leaf(it@INTLIT(i)))) =>
+        IntLiteral(i).setPos(it)
+      case Node('Literal ::= List(STRINGLITSENT), List(Leaf(st@STRINGLIT(s)))) =>
+        StringLiteral(s).setPos(st)
+      case Node('Literal ::= _, List(Leaf(tt@TRUE()))) =>
+        BooleanLiteral(true).setPos(tt)
+      case Node('Literal ::= _, List(Leaf(tf@FALSE()))) =>
+        BooleanLiteral(false).setPos(tf)
+    }
+  }
+
   /* ... */
   
 
@@ -102,12 +144,12 @@ class ASTConstructorLL1 extends ASTConstructor {
     ptree match {
       case Node(_, List()) => //epsilon rule of the nonterminals
         leftopd
-      case Node(sym ::= _, List(op, rightNode))
-        if Set('OrExpr, 'AndExpr, 'EqExpr, 'CompExpr, 'AddExpr, 'MultExpr) contains sym =>
+      case Node(sym ::= _, List(Leaf(op), rightNode))
+        if Set('Expr3Seq, 'Expr4Seq, 'Expr5Seq, 'Expr6Seq, 'Expr7Seq, 'Expr8Seq) contains sym =>
         rightNode match {
           case Node(_, List(nextOpd, suf)) => // 'Expr? ::= Expr? ~ 'OpExpr,
             val nextAtom = constructExpr(nextOpd)
-            constructOpExpr(constructOp(op)(leftopd, nextAtom).setPos(leftopd), suf) // captures left associativity
+            constructOpExpr(tokenToExpr(op)(leftopd, nextAtom).setPos(leftopd), suf) // captures left associativity
         }
     }
   }

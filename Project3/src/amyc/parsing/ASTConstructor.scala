@@ -30,7 +30,6 @@ class ASTConstructor {
     }
   }
 
-  //'ModuleDef ::= OBJECT() ~ 'Id ~ LBRACE() ~ 'Definitions ~ 'OptExpr ~ RBRACE() ~ EOF(),
 
   def constructName(ptree: NodeOrLeaf[Token]): (String, Positioned) = {
     ptree match {
