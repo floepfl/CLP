@@ -5,6 +5,7 @@ import grammarcomp.parsing._
 import utils.Positioned
 import ast.NominalTreeModule._
 import Tokens._
+import amyc.ast.NominalTreeModule
 
 // Implements the translation from parse trees to ASTs for the LL1 grammar,
 // that is, this should correspond to Parser.amyGrammarLL1.
@@ -96,10 +97,22 @@ class ASTConstructorLL1 extends ASTConstructor {
     ptreeSeq match {
       case Node('Expr2Seq ::= (MATCH() :: _), List(_, _, cases, _)) =>
         val exprLeft = constructExpr(ptreeLeft)
-        Match(exprLeft, constructList1(cases, constructCase)).setPos(exprLeft)
+        Match(exprLeft, constructCase2(cases)).setPos(exprLeft)
       case _ =>
         val exprLeft = constructExpr(ptreeLeft)
         exprLeft.setPos(exprLeft)
+    }
+  }
+
+  def constructCase2(pTree: NodeOrLeaf[Token]): List[MatchCase] = {
+    pTree match {
+      case Node('Case ::= _, List(Leaf(ct), pat, _, expr, cases2)) =>
+        cases2 match {
+          case Node('Cases2 ::= List('Cases), List(cases)) =>
+            MatchCase(constructPattern(pat), constructExpr(expr)).setPos(ct) :: constructCase2(cases)
+          case _ =>
+            List(MatchCase(constructPattern(pat), constructExpr(expr)).setPos(ct))
+        }
     }
   }
 
