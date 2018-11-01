@@ -72,7 +72,7 @@ object Parser extends Pipeline[Stream[Token], Program] {
     'OptExpr ::= 'ExprSeq | epsilon(),
     'Type ::= INT() | STRING() | BOOLEAN() | UNIT() | 'QName,
     'ExprSeq ::= VAL() ~ 'Param ~ EQSIGN() ~ 'Expr2 ~ SEMICOLON() ~ 'Expr2 | 'Expr2 ~ 'Expr,
-    'Expr ::= SEMICOLON() ~ 'Expr2 | epsilon(),
+    'Expr ::= SEMICOLON() ~ 'ExprSeq | epsilon(),
     'Expr2 ::= 'Expr3 ~'Expr2Seq,
     'Expr2Seq ::= MATCH() ~ LBRACE() ~ 'Cases ~ RBRACE() | epsilon(),
     'Expr3 ::= 'Expr4 ~ 'Expr3Seq,
