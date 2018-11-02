@@ -68,7 +68,7 @@ class ASTConstructorLL1 extends ASTConstructor {
       case Node('Expr10 ::= ('Id :: _), List(id, expr11)) =>
         constructExpr11(id, expr11)
       case Node('Expr10 ::= List('Literal), List(lit)) =>
-        constructLiteral(lit)
+        constructLiteralWithoutPar(lit)
       case Node('Expr10 ::= (LPAREN() :: _), List(Leaf(l), exprParen)) =>
         constructExprParen(exprParen).setPos(l)
     }
@@ -106,12 +106,12 @@ class ASTConstructorLL1 extends ASTConstructor {
 
   def constructCase2(pTree: NodeOrLeaf[Token]): List[MatchCase] = {
     pTree match {
-      case Node('Case ::= _, List(Leaf(ct), pat, _, expr, cases2)) =>
+      case Node('Cases ::= _, List(c, cases2)) =>
         cases2 match {
           case Node('Cases2 ::= List('Cases), List(cases)) =>
-            MatchCase(constructPattern(pat), constructExpr(expr)).setPos(ct) :: constructCase2(cases)
-          case _ =>
-            List(MatchCase(constructPattern(pat), constructExpr(expr)).setPos(ct))
+            constructCase(c) :: constructCase2(cases)
+          case Node('Cases2 ::= _, List()) =>
+            List(constructCase(c))
         }
     }
   }
@@ -128,7 +128,7 @@ class ASTConstructorLL1 extends ASTConstructor {
     }
   }
 
-  override def constructLiteral(pTree: NodeOrLeaf[Token]): Literal[_] = {
+  def constructLiteralWithoutPar(pTree: NodeOrLeaf[Token]): Literal[_] = {
     pTree match {
       case Node('Literal ::= List(INTLITSENT), List(Leaf(it@INTLIT(i)))) =>
         IntLiteral(i).setPos(it)
@@ -138,6 +138,31 @@ class ASTConstructorLL1 extends ASTConstructor {
         BooleanLiteral(true).setPos(tt)
       case Node('Literal ::= _, List(Leaf(tf@FALSE()))) =>
         BooleanLiteral(false).setPos(tf)
+    }
+  }
+
+  override def constructPattern(pTree: NodeOrLeaf[Token]): Pattern = {
+    pTree match {
+      case Node('Pattern ::= List(UNDERSCORE()), List(Leaf(u))) =>
+        WildcardPattern().setPos(u)
+      case Node('Pattern ::= List('NastyLiteral), List(nlit)) =>
+        val literal = constructLiteral(nlit)
+        LiteralPattern(literal).setPos(literal)
+      case Node('Pattern ::= ('Id :: _), List(id, pattern)) =>
+        constructPattern2(id, pattern)
+    }
+  }
+
+  def constructPattern2(pTreeId: NodeOrLeaf[Token], ptreeRight: NodeOrLeaf[Token]): Pattern = {
+    ptreeRight match {
+      case Node('Pattern2 ::= ('QName2 :: _), List(qn, _, patts, _)) =>
+        val name = constructName(pTreeId)
+        val (qname, pos) = constructQname2(qn, name)
+        val patterns = constructList(patts, constructPattern, hasComma = true)
+        CaseClassPattern(qname, patterns).setPos(pos)
+      case Node('Pattern2 ::= _, List()) =>
+        val (name, pos) = constructName(pTreeId)
+        IdPattern(name).setPos(pos)
     }
   }
 
