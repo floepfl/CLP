@@ -28,8 +28,21 @@ object primes {
 		
 	}
 
+
+	def parseList(l: L.List): Int = {
+		l match {
+			case L.Cons(value, list) => value match {
+				case L.Cons(v, l) => 0
+				case L.Nil() => 1
+			}
+			case L.Nil() => 9
+		}
+	}
+
+
 	Std.printString("Until what value do you want your List of primes to extend ?");
 	val maxValue: Int = Std.readInt();
 	val list: L.List = computePrimes(0, maxValue, L.Nil());
 	Std.printString(L.toString(list))
+
 }

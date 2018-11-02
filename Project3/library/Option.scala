@@ -1,3 +1,4 @@
+
 object O {
   abstract class Option
   case class None() extends Option

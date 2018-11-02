@@ -141,6 +141,21 @@ class ASTConstructorLL1 extends ASTConstructor {
     }
   }
 
+  override def constructLiteral(pTree: NodeOrLeaf[Token]): Literal[_] = {
+    pTree match {
+      case Node('NastyLiteral ::= List(INTLITSENT), List(Leaf(it@INTLIT(i)))) =>
+        IntLiteral(i).setPos(it)
+      case Node('NastyLiteral ::= List(STRINGLITSENT), List(Leaf(st@STRINGLIT(s)))) =>
+        StringLiteral(s).setPos(st)
+      case Node('NastyLiteral ::= _, List(Leaf(tt@TRUE()))) =>
+        BooleanLiteral(true).setPos(tt)
+      case Node('NastyLiteral ::= _, List(Leaf(tf@FALSE()))) =>
+        BooleanLiteral(false).setPos(tf)
+      case Node('NastyLiteral ::= _, List(Leaf(lp@LPAREN()), Leaf(RPAREN()))) =>
+        UnitLiteral().setPos(lp)
+    }
+  }
+
   override def constructPattern(pTree: NodeOrLeaf[Token]): Pattern = {
     pTree match {
       case Node('Pattern ::= List(UNDERSCORE()), List(Leaf(u))) =>
