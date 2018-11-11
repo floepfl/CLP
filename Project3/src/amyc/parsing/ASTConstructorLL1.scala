@@ -24,7 +24,7 @@ class ASTConstructorLL1 extends ASTConstructor {
 
   def constructQname2(pTree: NodeOrLeaf[Token], name: (String, Positioned)) : (QualifiedName, Positioned) = {
     pTree match {
-      case Node('QName2 ::= ('Id :: _), List(_, id2)) =>
+      case Node('QName2 ::= _, List(_, id2)) =>
         val (name2, pos2) = constructName(id2)
         (QualifiedName(Some(name._1), name2), pos2)
       case _ => (QualifiedName(None, name._1), name._2)

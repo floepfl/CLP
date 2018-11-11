@@ -26,7 +26,6 @@ object NameAnalyzer extends Pipeline[N.Program, (S.Program, SymbolTable)] {
 
     modNames.keys.toList foreach table.addModule
 
-
     // Helper method: will transform a nominal type 'tt' to a symbolic type,
     // given that we are within module 'inModule'.
     def transformType(tt: N.TypeTree, inModule: String): S.Type = {
@@ -46,13 +45,25 @@ object NameAnalyzer extends Pipeline[N.Program, (S.Program, SymbolTable)] {
     }
 
     // Step 2: Check name uniqueness of definitions in each module
-    // TODO
+
+    p.modules.foreach{case mod =>
+        val names = mod.defs.map{_.name}
+        if(names.toSet.size != names.size) {
+          fatal(s"Two defs in module $mod have the same name", mod.defs.head.position)
+        }}
 
     // Step 3: Discover types and add them to symbol table
-    // TODO
+    p.modules.foreach{case mod =>
+      mod.defs.foreach{d => d match {
+        case N.AbstractClassDef(name) => table.addType(mod.name, name)
+        case N.CaseClassDef(name, argTypes, parentName) => table.addConstructor()
+      }}
+    }
 
     // Step 4: Discover type constructors, add them to table
-    // TODO
+    p.modules.foreach{case mod =>
+
+    }
 
     // Step 5: Discover functions signatures, add them to table
     // TODO
