@@ -1,6 +1,7 @@
 package amyc
 package analyzer
 
+import amyc.ast.NominalTreeModule.QualifiedName
 import utils._
 import ast.{Identifier, NominalTreeModule => N, SymbolicTreeModule => S}
 
@@ -56,17 +57,35 @@ object NameAnalyzer extends Pipeline[N.Program, (S.Program, SymbolTable)] {
     p.modules.foreach{case mod =>
       mod.defs.foreach{d => d match {
         case N.AbstractClassDef(name) => table.addType(mod.name, name)
-        case N.CaseClassDef(name, argTypes, parentName) => table.addConstructor()
+        case _ =>
       }}
     }
 
     // Step 4: Discover type constructors, add them to table
-    p.modules.foreach{case mod =>
 
+    p.modules.foreach{case mod =>
+      mod.defs.foreach(d => d match {
+        case N.CaseClassDef(name, argTypes, parentName) =>
+          val id = table.getType(mod.name, parentName)
+          if(id.isDefined) {
+            val list = argTypes.map { case tt => transformType(tt, mod.name) }
+            table.addConstructor(mod.name, name, list, id.get)
+          } else {
+            fatal(s"Could not find $name", d.position)
+          }
+        case _ =>
+      })
     }
 
     // Step 5: Discover functions signatures, add them to table
-    // TODO
+    p.modules.foreach{case mod =>
+      mod.defs.foreach(d => d match {
+        case N.FunDef(name, params, retType, _) =>
+          val paramsSType = params.map{case N.ParamDef(_, tt) => transformType(tt, mod.name)}
+          table.addFunction(mod.name, name, paramsSType, transformType(retType, mod.name))
+        case _ =>
+      })
+    }
 
     // Step 6: We now know all definitions in the program.
     //         Reconstruct modules and analyse function bodies/ expressions
@@ -78,9 +97,19 @@ object NameAnalyzer extends Pipeline[N.Program, (S.Program, SymbolTable)] {
 
     def transformDef(df: N.ClassOrFunDef, module: String): S.ClassOrFunDef = { df match {
       case N.AbstractClassDef(name) =>
-        ???  // TODO
+        S.AbstractClassDef(Identifier.fresh(name))
       case N.CaseClassDef(name, _, _) =>
-        ???  // TODO
+        table.getConstructor(module, name) match {
+          case Some((id, ConstrSig(argTypes, parent, index))) =>
+            val argTypeTree = argTypes.map(t => S.TypeTree(t))
+            val Sparent = table.getType(module, parent.name)
+            if(Sparent.isDefined) {
+              S.CaseClassDef(id, argTypeTree, Sparent.get)
+            } else {
+              fatal(s"Could not find $parent in module $module concerning $name", df.position)
+            }
+          case None => fatal(s"Could not find $name in transformDef CaseClassDef", df.position)
+        }
       case fd: N.FunDef =>
         transformFunDef(fd, module)
     }}.setPos(df)
@@ -112,6 +141,28 @@ object NameAnalyzer extends Pipeline[N.Program, (S.Program, SymbolTable)] {
       ).setPos(fd)
     }
 
+    def SQname(qname: N.QualifiedName, module: String, p: Position): S.QualifiedName = {
+      qname match {
+        case N.QualifiedName(None, name) =>
+          val f = table.getFunction(module, name)
+          val c = table.getConstructor(module, name)
+          SQnameSeq(f, c, name)
+        case N.QualifiedName(Some(mod), name) =>
+          val f = table.getFunction(mod, name)
+          val c = table.getConstructor(mod, name)
+          SQnameSeq(f, c, name)
+      }
+    }
+
+    def SQnameSeq(f: Option[(Identifier, FunSig)], c: Option[(Identifier, ConstrSig)], name: String): S.QualifiedName = {
+      f match {
+        case Some((id, _)) => id
+        case None => c match {
+          case Some((id, _)) => id
+          case None => fatal(s"Could not find function or caseclass named $name", p)
+        }
+      }
+    }
     // This function takes as implicit a pair of two maps:
     // The first is a map from names of parameters to their unique identifiers,
     // the second is similar for local variables.
@@ -121,23 +172,84 @@ object NameAnalyzer extends Pipeline[N.Program, (S.Program, SymbolTable)] {
       val (params, locals) = names
       val res = expr match {
         case N.Match(scrut, cases) =>
+          def cases_S = cases.map(transformCase(_))
+          S.Match(transformExpr(scrut), cases_S).setPos(scrut.position)
           // Returns a transformed pattern along with all bindings
           // from strings to unique identifiers for names bound in the pattern.
           // Also, calls 'fatal' if a new name violates the Amy naming rules.
           def transformPattern(pat: N.Pattern): (S.Pattern, List[(String, Identifier)]) = {
-            ???  // TODO
+            pat match {
+              case N.WildcardPattern() => (S.WildcardPattern().setPos(pat.position), Nil)
+              case N.IdPattern(name) =>
+                if(locals.contains(name)) fatal(s"$name already exists")
+                (S.IdPattern(Identifier.fresh(name)).setPos(pat.position), List((name, Identifier.fresh(name))))
+              case N.LiteralPattern(lit) => lit match {
+                case N.IntLiteral(i) => (S.LiteralPattern(S.IntLiteral(i)).setPos(pat.position), Nil)
+                case N.BooleanLiteral(b) => (S.LiteralPattern(S.BooleanLiteral(b)).setPos(pat.position), Nil)
+                case N.StringLiteral(s) => (S.LiteralPattern(S.StringLiteral(s)).setPos(pat.position), Nil)
+                case N.UnitLiteral() => (S.LiteralPattern(S.UnitLiteral()).setPos(pat.position), Nil)
+              }
+              case N.CaseClassPattern(constr, args) =>
+                val args_S = for(a <- args) yield transformPattern(a)
+                val names = args_S.flatMap(_._2).map(_._1)
+                if(names.size != names.toSet.size) {
+                  fatal("Found two identical variables name in a case pattern")
+                }
+                val s = SQname(constr, module, pat.position)
+                val l = (constr.toString, s)
+                val list = List(l)
+                (S.CaseClassPattern(Identifier.fresh(constr.toString), args_S.map(_._1)).setPos(pat.position), args_S.flatMap(_._2))
+            }
           }
 
           def transformCase(cse: N.MatchCase) = {
             val N.MatchCase(pat, rhs) = cse
             val (newPat, moreLocals) = transformPattern(pat)
-            ???  // TODO
+            S.MatchCase(newPat, transformExpr(rhs)(module, (params, locals ++ moreLocals)))
           }
 
           S.Match(transformExpr(scrut), cases.map(transformCase))
 
-        case _ =>
-          ???  // TODO: Implement the rest of the cases
+        case N.Variable(name) =>
+          if(params.contains(name)) {
+            S.Variable(params(name))
+          } else if(locals.contains(name)) {
+            S.Variable(locals(name))
+          } else {
+            fatal(s"Didn't find variable $name", expr.position)
+          }
+        case N.IntLiteral(i) => S.IntLiteral(i)
+        case N.BooleanLiteral(b) => S.BooleanLiteral(b)
+        case N.StringLiteral(s) => S.StringLiteral(s)
+        case N.UnitLiteral() => S.UnitLiteral()
+        case N.Neg(e) => S.Neg(transformExpr(e))
+        case N.Not(e) => S.Not(transformExpr(e))
+        case N.And(lhs, rhs) => S.And(transformExpr(lhs), transformExpr(rhs))
+        case N.Mod(lhs, rhs) => S.Mod(transformExpr(lhs), transformExpr(rhs))
+        case N.Div(lhs, rhs) => S.Div(transformExpr(lhs), transformExpr(rhs))
+        case N.Concat(lhs, rhs) => S.Concat(transformExpr(lhs), transformExpr(rhs))
+        case N.Equals(lhs, rhs) => S.Equals(transformExpr(lhs), transformExpr(rhs))
+        case N.Or(lhs, rhs) => S.Or(transformExpr(lhs), transformExpr(rhs))
+        case N.LessEquals(lhs, rhs) => S.LessEquals(transformExpr(lhs), transformExpr(rhs))
+        case N.LessThan(lhs, rhs) => S.LessThan(transformExpr(lhs), transformExpr(rhs))
+        case N.Times(lhs, rhs) => S.Times(transformExpr(lhs), transformExpr(rhs))
+        case N.Minus(lhs, rhs) => S.Times(transformExpr(lhs), transformExpr(rhs))
+        case N.Plus(lhs, rhs) => S.Plus(transformExpr(lhs), transformExpr(rhs))
+        case N.Call(qname, args) =>
+          val sQname = SQname(qname, module, expr.position)
+          val sArgs = args.map(transformExpr(_))
+          S.Call(sQname, sArgs)
+        case N.Sequence(s1, s2) => S.Sequence(transformExpr(s1), transformExpr(s2))
+        case N.Let(df, value, body) =>
+          val name = df.name
+          if(locals.contains(df.name)) fatal(s"Variable $name already defined", df.position)
+          val identifierDf = Identifier.fresh(df.name)
+          val Sdf = S.ParamDef(identifierDf, S.TypeTree(transformType(df.tt, module)))
+          val SValue = transformExpr(value)
+          S.Let(Sdf, SValue, transformExpr(body)(module, (params, locals + (df.name -> identifierDf))))
+        case N.Ite(cond, thenn, elze) =>
+          S.Ite(transformExpr(cond), transformExpr(thenn), transformExpr(elze))
+        case N.Error(msg) => S.Error(transformExpr(msg))
       }
       res.setPos(expr)
     }

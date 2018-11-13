@@ -62,18 +62,38 @@ object Lexer extends Pipeline[List[File], Stream[Token]] {
       require(stream.nonEmpty)
 
       val (currentChar, currentPos) #:: rest = stream
-
+      val l = stream.map(_._1).toList
       // Use with care!
       def nextChar = rest.head._1
 
       if (Character.isWhitespace(currentChar)) {
-        nextToken(stream.dropWhile{ case (c, _) => Character.isWhitespace(c) } )
+        nextToken(stream.dropWhile { case (c, _) => Character.isWhitespace(c) })
       } else if (currentChar == '/' && nextChar == '/') {
-        // Single-line comment
-        ???  // TODO
+        val str = rest.tail.dropWhile { case (c, _) => (c != '\n' && c != '\r' && c != EndOfFile) }
+        if (str.head._1 == EndOfFile) {
+          readToken(str)
+        } else {
+          nextToken(str.tail)
+        }
       } else if (currentChar == '/' && nextChar == '*') {
-        // Multi-line comment
-        ???  // TODO
+        def inner(stream: Stream[Input]): Stream[Input] = {
+          val str = stream.dropWhile { case (c, _) => c != '*' }
+          if (str.isEmpty) {
+            Stream.empty
+          } else if (str.tail.head._1 == '/') {
+            str.tail.tail
+          } else {
+            inner(str.tail)
+          }
+        }
+
+        val str = inner(rest.tail)
+        if (str.isEmpty) {
+          ctx.reporter.error("'*/' expected")
+          (BAD().setPos(currentPos), str)
+        } else {
+          nextToken(str)
+        }
       } else {
         readToken(stream)
       }
@@ -92,6 +112,7 @@ object Lexer extends Pipeline[List[File], Stream[Token]] {
 
       // Returns input token with correct position and uses up one character of the stream
       def useOne(t: Token) = (t.setPos(currentPos), rest)
+
       // Returns input token with correct position and uses up two characters of the stream
       def useTwo(t: Token) = (t.setPos(currentPos), rest.tail)
 
@@ -107,22 +128,117 @@ object Lexer extends Pipeline[List[File], Stream[Token]] {
           // Hint: Decide if it's a letter or reserved word (use our infrastructure!),
           // and return the correct token, along with the remaining input stream.
           // Make sure you set the correct position for the token.
-          ???  // TODO
-
+          /*   if(!Character.isWhitespace(afterWord.head._1)) {
+               (BAD, )
+               ctx.reporter.("Invalid variable name", )
+             }*/
+          if (keywords(word).isDefined) {
+            (keywords(word).get.setPos(currentPos), afterWord)
+          } else {
+            (ID(word).setPos(currentPos), afterWord)
+          }
         // Int literal
         case _ if Character.isDigit(currentChar) =>
-          // Hint: Use a strategy similar to the previous example.
-          // Make sure you fail for integers that do not fit 32 bits.
-          ???  // TODO
+          val (beforeInteger, afterInteger) = stream.span { case (ch, _) =>
+            Character.isDigit(ch)
+          }
 
+          val int = BigInt(beforeInteger.map(_._1).mkString)
+          if (int.isValidInt) {
+            (INTLIT(int.toInt).setPos(currentPos), afterInteger)
+          } else {
+            error("Overflow from integer value", beforeInteger.head._2)
+            (BAD().setPos(currentPos), afterInteger)
+          }
+        // Hint: Use a strategy similar to the previous example.
+        // Make sure you fail for integers that do not fit 32 bits.
         // String literal
         case '"' =>
-          ???  // TODO
+          val (string, afterString) = stream.tail.span { case (ch, _) =>
+            ch != '"'
+          }
+          val list = string.map(_._1).toList
+          if (list.foldLeft(false) { case (acc, el) => if (el == '\r' || el == '\n') acc || true else acc || false }) {
+            error("Invalid String format. New line is not a valid character in a String", string.head._2)
+            if(afterString.isEmpty) {
+              (BAD().setPos(currentPos), Stream.empty)
+            } else {
+              (BAD().setPos(currentPos), afterString.tail)
+            }
+          } else {
+            if(afterString.isEmpty) {
+              if(string.contains('"')) {
+                (EOF().setPos(currentPos), Stream.empty)
+              } else {
+                error("Expected '' ", currentPos)
+                (BAD().setPos(currentPos), Stream.empty)
+              }
+            } else {
+              (STRINGLIT(string.map(_._1).mkString).setPos(currentPos), afterString.tail)
+            }
+          }
 
         case _ =>
-          ???  // TODO: Replace this catch-all by additional cases for other tokens
-               // (You can look at Tokens.scala for an exhaustive list of tokens)
-               // There should also be a case for all remaining (invalid) characters in the end
+          currentChar match {
+            case ';' => useOne(SEMICOLON()) // ;
+            case '+' => {
+              if (rest.head._1 == '+') {
+                useTwo(CONCAT())
+              } else {
+                useOne(PLUS())
+              }
+            }
+            case '-' => useOne(MINUS()) // -
+            case '*' => useOne(TIMES()) // *
+            case '/' => useOne(DIV()) // /
+            case '%' => useOne(MOD()) // %
+            case '<' => {
+              if (rest.head._1 == '=') {
+                useTwo(LESSEQUALS())
+              } else {
+                useOne(LESSTHAN())
+              }
+            }
+            case '&' => {
+              if (rest.head._1 == '&') {
+                useTwo(AND())
+              } else {
+                error("& expected", rest.head._2)
+                useOne(BAD())
+              }
+            }
+            case '|' => {
+              if (rest.head._1 == '|') {
+                useTwo(OR())
+              } else {
+                error("| expected", rest.head._2)
+                useOne(BAD())
+              }
+            }
+            case '=' => {
+              val c = rest.head._1
+              if (c == '=') {
+                useTwo(EQUALS())
+              } else if (c == '>') {
+                useTwo(RARROW())
+              } else {
+                useOne(EQSIGN())
+              }
+            }
+            case '!' => useOne(BANG()) // !
+            case '{' => useOne(LBRACE()) // {
+            case '}' => useOne(RBRACE()) // }
+            case '(' => useOne(LPAREN()) // (
+            case ')' => useOne(RPAREN()) // )
+            case ',' => useOne(COMMA()) // ,
+            case ':' => useOne(COLON()) // :
+            case '.' => useOne(DOT()) // .
+            case '_' => useOne(UNDERSCORE()) // _
+            case _ => {
+              error("Invalid char", currentPos)
+              useOne(BAD())
+            }
+          }
       }
     }
 
@@ -137,6 +253,7 @@ object Lexer extends Pipeline[List[File], Stream[Token]] {
 
     tokenStream(inputStream)
   }
+
 
   // Lexing all input files means putting the tokens from each file one after the other
   def run(ctx: Context)(files: List[File]): Stream[Token] = {

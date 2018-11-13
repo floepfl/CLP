@@ -2,8 +2,10 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/Project4.iml" filepath="$PROJECT_DIR$/Project4.iml" />
-      <module fileurl="file://$PROJECT_DIR$/test/test.iml" filepath="$PROJECT_DIR$/test/test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/amyc.iml" filepath="$PROJECT_DIR$/.idea/modules/amyc.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/amyc-build.iml" filepath="$PROJECT_DIR$/.idea/modules/amyc-build.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/project4.iml" filepath="$PROJECT_DIR$/.idea/modules/project4.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/project4-build.iml" filepath="$PROJECT_DIR$/.idea/modules/project4-build.iml" />
     </modules>
   </component>
 </project>
