@@ -97,7 +97,11 @@ object NameAnalyzer extends Pipeline[N.Program, (S.Program, SymbolTable)] {
 
     def transformDef(df: N.ClassOrFunDef, module: String): S.ClassOrFunDef = { df match {
       case N.AbstractClassDef(name) =>
-        S.AbstractClassDef(Identifier.fresh(name))
+        val SType = table.getType(module, name)
+        if (SType.isDefined)
+          S.AbstractClassDef(SType.get)
+        else
+          fatal(s"Could not find AbstractClassDef $name inside the module $module", df.position)
       case N.CaseClassDef(name, _, _) =>
         table.getConstructor(module, name) match {
           case Some((id, ConstrSig(argTypes, parent, index))) =>
@@ -141,24 +145,28 @@ object NameAnalyzer extends Pipeline[N.Program, (S.Program, SymbolTable)] {
       ).setPos(fd)
     }
 
-    def SQname(qname: N.QualifiedName, module: String, p: Position): S.QualifiedName = {
+    def SQname(qname: N.QualifiedName, module: String, position: Position, numberOfArguments: Int): S.QualifiedName = {
       qname match {
         case N.QualifiedName(None, name) =>
           val f = table.getFunction(module, name)
           val c = table.getConstructor(module, name)
-          SQnameSeq(f, c, name)
+          SQnameSeq(f, c, name, numberOfArguments, position)
         case N.QualifiedName(Some(mod), name) =>
           val f = table.getFunction(mod, name)
           val c = table.getConstructor(mod, name)
-          SQnameSeq(f, c, name)
+          SQnameSeq(f, c, name, numberOfArguments, position)
       }
     }
 
-    def SQnameSeq(f: Option[(Identifier, FunSig)], c: Option[(Identifier, ConstrSig)], name: String): S.QualifiedName = {
+    def SQnameSeq(f: Option[(Identifier, FunSig)], c: Option[(Identifier, ConstrSig)], name: String, numberOfArguments: Int, position: Position): S.QualifiedName = {
       f match {
-        case Some((id, _)) => id
+        case Some((id, funSig)) =>
+          if(funSig.argTypes.size != numberOfArguments) fatal(s"Function $id has the wrong number of arguments", p)
+          id
         case None => c match {
-          case Some((id, _)) => id
+          case Some((id, constrSig)) =>
+            if(constrSig.argTypes.size != numberOfArguments) fatal(s"Construtor $id has the wrong number of arguments", p)
+            id
           case None => fatal(s"Could not find function or caseclass named $name", p)
         }
       }
@@ -182,7 +190,8 @@ object NameAnalyzer extends Pipeline[N.Program, (S.Program, SymbolTable)] {
               case N.WildcardPattern() => (S.WildcardPattern().setPos(pat.position), Nil)
               case N.IdPattern(name) =>
                 if(locals.contains(name)) fatal(s"$name already exists")
-                (S.IdPattern(Identifier.fresh(name)).setPos(pat.position), List((name, Identifier.fresh(name))))
+                val id = Identifier.fresh(name)
+                (S.IdPattern(id).setPos(pat.position), List((name, id)))
               case N.LiteralPattern(lit) => lit match {
                 case N.IntLiteral(i) => (S.LiteralPattern(S.IntLiteral(i)).setPos(pat.position), Nil)
                 case N.BooleanLiteral(b) => (S.LiteralPattern(S.BooleanLiteral(b)).setPos(pat.position), Nil)
@@ -195,10 +204,8 @@ object NameAnalyzer extends Pipeline[N.Program, (S.Program, SymbolTable)] {
                 if(names.size != names.toSet.size) {
                   fatal("Found two identical variables name in a case pattern")
                 }
-                val s = SQname(constr, module, pat.position)
-                val l = (constr.toString, s)
-                val list = List(l)
-                (S.CaseClassPattern(Identifier.fresh(constr.toString), args_S.map(_._1)).setPos(pat.position), args_S.flatMap(_._2))
+                val s = SQname(constr, module, pat.position, args.size)
+                (S.CaseClassPattern(s, args_S.map(_._1)).setPos(pat.position), args_S.flatMap(_._2))
             }
           }
 
@@ -211,10 +218,10 @@ object NameAnalyzer extends Pipeline[N.Program, (S.Program, SymbolTable)] {
           S.Match(transformExpr(scrut), cases.map(transformCase))
 
         case N.Variable(name) =>
-          if(params.contains(name)) {
-            S.Variable(params(name))
-          } else if(locals.contains(name)) {
+          if(locals.contains(name)) {
             S.Variable(locals(name))
+          } else if(params.contains(name)) {
+            S.Variable(params(name))
           } else {
             fatal(s"Didn't find variable $name", expr.position)
           }
@@ -224,6 +231,7 @@ object NameAnalyzer extends Pipeline[N.Program, (S.Program, SymbolTable)] {
         case N.UnitLiteral() => S.UnitLiteral()
         case N.Neg(e) => S.Neg(transformExpr(e))
         case N.Not(e) => S.Not(transformExpr(e))
+        case N.Times(lhs, rhs) => S.Times(transformExpr(lhs), transformExpr(rhs))
         case N.And(lhs, rhs) => S.And(transformExpr(lhs), transformExpr(rhs))
         case N.Mod(lhs, rhs) => S.Mod(transformExpr(lhs), transformExpr(rhs))
         case N.Div(lhs, rhs) => S.Div(transformExpr(lhs), transformExpr(rhs))
@@ -232,11 +240,10 @@ object NameAnalyzer extends Pipeline[N.Program, (S.Program, SymbolTable)] {
         case N.Or(lhs, rhs) => S.Or(transformExpr(lhs), transformExpr(rhs))
         case N.LessEquals(lhs, rhs) => S.LessEquals(transformExpr(lhs), transformExpr(rhs))
         case N.LessThan(lhs, rhs) => S.LessThan(transformExpr(lhs), transformExpr(rhs))
-        case N.Times(lhs, rhs) => S.Times(transformExpr(lhs), transformExpr(rhs))
-        case N.Minus(lhs, rhs) => S.Times(transformExpr(lhs), transformExpr(rhs))
+        case N.Minus(lhs, rhs) => S.Minus(transformExpr(lhs), transformExpr(rhs))
         case N.Plus(lhs, rhs) => S.Plus(transformExpr(lhs), transformExpr(rhs))
         case N.Call(qname, args) =>
-          val sQname = SQname(qname, module, expr.position)
+          val sQname = SQname(qname, module, expr.position, args.size)
           val sArgs = args.map(transformExpr(_))
           S.Call(sQname, sArgs)
         case N.Sequence(s1, s2) => S.Sequence(transformExpr(s1), transformExpr(s2))
