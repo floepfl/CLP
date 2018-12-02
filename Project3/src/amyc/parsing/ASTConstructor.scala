@@ -167,6 +167,7 @@ class ASTConstructor {
   }
 
   def constructLiteral(pTree: NodeOrLeaf[Token]): Literal[_] = {
+    print("nike")
     pTree match {
       case Node('Literal ::= List(INTLITSENT), List(Leaf(it@INTLIT(i)))) =>
         IntLiteral(i).setPos(it)
