@@ -49,14 +49,23 @@ object TypeChecker extends Pipeline[(Program, SymbolTable), (Program, SymbolTabl
           // from identifiers to types for names bound in the pattern.
           // (This is analogous to `transformPattern` in NameAnalyzer.)
           def handlePattern(pat: Pattern, scrutExpected: Type):
-            (List[Constraint], Map[Identifier, Type]) =
-          {
-            ???  // TODO
+            (List[Constraint], Map[Identifier, Type]) = {
+            pat match {
+             case WildcardPattern () => (List(Constraint(UnitType, scrutExpected, e.position)), Map.empty)
+             case IdPattern (name: Name) => (Nil, Map(name -> scrutExpected))
+             case LiteralPattern (lit) => (genConstraints(lit, scrutExpected), Map.empty)
+             case CaseClassPattern (constr: QualifiedName, args: List[Pattern] ) =>
+                val constrSig = table.getConstructor(constr)
+                val pair = constrSig.get.argTypes.zip(args).map{case (t, arg) => handlePattern(arg, t)}
+                val constraints = pair.map(_._1).flatten
+                val moreEnv = pair.map(_._2).flatten.toMap
+               (Constraint(env(constrSig.get.parent), scrutExpected, e.position) :: constraints, moreEnv)
+            }
           }
 
           def handleCase(cse: MatchCase, scrutExpected: Type): List[Constraint] = {
             val (patConstraints, moreEnv) = handlePattern(cse.pat, scrutExpected)
-            ???  // TODO
+            patConstraints ::: genConstraints(cse.expr, expected)(moreEnv ++ env)
           }
 
           val st = TypeVariable.fresh()
@@ -138,7 +147,13 @@ object TypeChecker extends Pipeline[(Program, SymbolTable), (Program, SymbolTabl
         case Constraint(found, expected, pos) :: more =>
           // HINT: You can use the `subst_*` helper above to replace a type variable
           //       by another type in your current set of constraints.
-          ???  // TODO
+          found match {
+            case TypeVariable(i) => solveConstraints(subst_*(constraints, i, expected))
+            case IntType => if(expected != IntType) ctx.reporter.error(s"Expected IntType found $expected", pos)
+            case BooleanType => if(expected != BooleanType) ctx.reporter.error(s"Expected BooleanType found $expected", pos)
+            case StringType => if(expected != StringType) ctx.reporter.error(s"Expected StringType found $expected", pos)
+            case UnitType => if(expected != UnitType) ctx.reporter.error(s"Expected UnitType found $expected", pos)
+          }
       }
     }
 
