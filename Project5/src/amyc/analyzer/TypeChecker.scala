@@ -42,7 +42,7 @@ object TypeChecker extends Pipeline[(Program, SymbolTable), (Program, SymbolTabl
         case Equals(lhs, rhs) =>
           // HINT: Take care to implement the specified Amy semantic
           val tpe = TypeVariable.fresh()
-        Constraint(expected, BooleanType, e.position) :: genConstraints(lhs, tpe) ::: genConstraints(rhs, tpe)
+        Constraint(BooleanType, expected, e.position) :: genConstraints(lhs, tpe) ::: genConstraints(rhs, tpe)
         
         case Match(scrut, cases) =>
           // Returns additional constraints from within the pattern with all bindings
@@ -59,7 +59,7 @@ object TypeChecker extends Pipeline[(Program, SymbolTable), (Program, SymbolTabl
                 val pair = constrSig.get.argTypes.zip(args).map{case (t, arg) => handlePattern(arg, t)}
                 val constraints = pair.map(_._1).flatten
                 val moreEnv = pair.map(_._2).flatten.toMap
-               (Constraint(env(constrSig.get.parent), scrutExpected, e.position) :: constraints, moreEnv)
+               (Constraint(ClassType(constrSig.get.parent), scrutExpected, e.position) :: constraints, moreEnv)
             }
           }
 
@@ -80,13 +80,13 @@ object TypeChecker extends Pipeline[(Program, SymbolTable), (Program, SymbolTabl
         case Div(lhs, rhs) =>
           genConstraints(lhs, IntType) ::: (Constraint(IntType, expected, e.position) :: genConstraints(rhs, IntType))
         case Concat(lhs, rhs) =>
-          genConstraints(lhs, IntType) ::: (Constraint(IntType, expected, e.position) :: genConstraints(rhs, IntType))
+          genConstraints(lhs, StringType) ::: (Constraint(StringType, expected, e.position) :: genConstraints(rhs, StringType))
         case Or(lhs, rhs) =>
           genConstraints(lhs, BooleanType) ::: (Constraint(BooleanType, expected, e.position) :: genConstraints(rhs, BooleanType))
         case LessEquals(lhs, rhs) =>
-          genConstraints(lhs, BooleanType) ::: (Constraint(BooleanType, expected, e.position) :: genConstraints(rhs, BooleanType))
+          genConstraints(lhs, IntType) ::: (Constraint(BooleanType, expected, e.position) :: genConstraints(rhs, IntType))
         case LessThan(lhs, rhs) =>
-          genConstraints(lhs, BooleanType) ::: (Constraint(BooleanType, expected, e.position) :: genConstraints(rhs, BooleanType))
+          genConstraints(lhs, IntType) ::: (Constraint(BooleanType, expected, e.position) :: genConstraints(rhs, IntType))
         case Minus(lhs, rhs) =>
           genConstraints(lhs, IntType) ::: (Constraint(IntType, expected, e.position) :: genConstraints(rhs, IntType))
         case Plus(lhs, rhs) =>
@@ -99,15 +99,14 @@ object TypeChecker extends Pipeline[(Program, SymbolTable), (Program, SymbolTabl
         case Call(qname, args) =>
           val funSig = table.getFunction(qname)
           val constrSig = table.getConstructor(qname)
-          val tpe = env(qname)
           if(funSig.isDefined) {
             val argsAndTypes = args.zip(funSig.get.argTypes)
             val argsConstraint = argsAndTypes.flatMap{case(expr, t) => genConstraints(expr, t)}
-            Constraint(tpe, expected, e.position) :: argsConstraint
+            Constraint(funSig.get.retType, expected, e.position) :: argsConstraint
           } else {
             val argsAndConstr = args.zip(constrSig.get.argTypes)
             val argsConstraint = argsAndConstr.flatMap{case(expr, t) => genConstraints(expr, t)}
-            Constraint(tpe, expected, e.position) :: argsConstraint
+            Constraint(ClassType(constrSig.get.parent), expected, e.position) :: argsConstraint
           }
         case Sequence(s1, s2) =>
           genConstraints(s1, TypeVariable.fresh()) ::: genConstraints(s2, expected)
@@ -147,12 +146,38 @@ object TypeChecker extends Pipeline[(Program, SymbolTable), (Program, SymbolTabl
         case Constraint(found, expected, pos) :: more =>
           // HINT: You can use the `subst_*` helper above to replace a type variable
           //       by another type in your current set of constraints.
-          found match {
-            case TypeVariable(i) => solveConstraints(subst_*(constraints, i, expected))
-            case IntType => if(expected != IntType) ctx.reporter.error(s"Expected IntType found $expected", pos)
-            case BooleanType => if(expected != BooleanType) ctx.reporter.error(s"Expected BooleanType found $expected", pos)
-            case StringType => if(expected != StringType) ctx.reporter.error(s"Expected StringType found $expected", pos)
-            case UnitType => if(expected != UnitType) ctx.reporter.error(s"Expected UnitType found $expected", pos)
+          expected match {
+            case TypeVariable(i) =>
+                solveConstraints(subst_*(more, i, found))
+            case IntType =>
+              found match {
+                case IntType => solveConstraints(more)
+                case UnitType => solveConstraints(more)
+                case _ => ctx.reporter.error(s"Expected IntType found $found", pos)
+              }
+            case BooleanType =>
+              found match {
+                case UnitType => solveConstraints(more)
+                case BooleanType => solveConstraints(more)
+                case _ => ctx.reporter.error(s"Expected BooleanType found $found", pos)
+              }
+            case StringType =>
+              found match {
+                case UnitType => solveConstraints(more)
+                case StringType => solveConstraints(more)
+                case _ => ctx.reporter.error(s"Expected StringType found $found", pos)
+              }
+            case UnitType =>
+              found match {
+                case UnitType => solveConstraints(more)
+                case _ => ctx.reporter.error(s"Expected UnitType found $found", pos)
+              }
+            case ClassType(name) =>
+              found match {
+                case UnitType => solveConstraints(more)
+                case ClassType(name1) => if(name1 != name) ctx.reporter.error(s"Expected $name found $name1", pos) else solveConstraints(more)
+                case _ => ctx.reporter.error(s"Expected $name found $found", pos)
+              }
           }
       }
     }
