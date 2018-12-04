@@ -51,7 +51,7 @@ object TypeChecker extends Pipeline[(Program, SymbolTable), (Program, SymbolTabl
           def handlePattern(pat: Pattern, scrutExpected: Type):
             (List[Constraint], Map[Identifier, Type]) = {
             pat match {
-             case WildcardPattern () => (List(Constraint(UnitType, scrutExpected, e.position)), Map.empty)
+             case WildcardPattern () => (Nil, Map.empty)
              case IdPattern (name: Name) => (Nil, Map(name -> scrutExpected))
              case LiteralPattern (lit) => (genConstraints(lit, scrutExpected), Map.empty)
              case CaseClassPattern (constr: QualifiedName, args: List[Pattern] ) =>
@@ -152,18 +152,15 @@ object TypeChecker extends Pipeline[(Program, SymbolTable), (Program, SymbolTabl
             case IntType =>
               found match {
                 case IntType => solveConstraints(more)
-                case UnitType => solveConstraints(more)
                 case _ => ctx.reporter.error(s"Expected IntType found $found", pos)
               }
             case BooleanType =>
               found match {
-                case UnitType => solveConstraints(more)
                 case BooleanType => solveConstraints(more)
                 case _ => ctx.reporter.error(s"Expected BooleanType found $found", pos)
               }
             case StringType =>
               found match {
-                case UnitType => solveConstraints(more)
                 case StringType => solveConstraints(more)
                 case _ => ctx.reporter.error(s"Expected StringType found $found", pos)
               }
@@ -174,7 +171,6 @@ object TypeChecker extends Pipeline[(Program, SymbolTable), (Program, SymbolTabl
               }
             case ClassType(name) =>
               found match {
-                case UnitType => solveConstraints(more)
                 case ClassType(name1) => if(name1 != name) ctx.reporter.error(s"Expected $name found $name1", pos) else solveConstraints(more)
                 case _ => ctx.reporter.error(s"Expected $name found $found", pos)
               }
