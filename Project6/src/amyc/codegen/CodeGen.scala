@@ -3,10 +3,10 @@ package codegen
 
 import analyzer._
 import ast.Identifier
-import ast.SymbolicTreeModule.{Call => AmyCall, Div => AmyDiv, And => AmyAnd, Or => AmyOr, _}
+import ast.SymbolicTreeModule.{And => AmyAnd, Call => AmyCall, Div => AmyDiv, Or => AmyOr, _}
 import utils.{Context, Pipeline}
 import wasm._
-import Instructions._
+import Instructions.{Div, _}
 import Utils._
 
 // Generates WebAssembly code for an Amy program
@@ -51,7 +51,26 @@ object CodeGen extends Pipeline[(Program, SymbolTable), Module] {
     // fresh local slots as required.
     def cgExpr(expr: Expr)(implicit locals: Map[Identifier, Int], lh: LocalsHandler): Code = {
       expr match {
-        case 
+        case IntLiteral(i) => Const(i)
+        case BooleanLiteral(b) => if(b) Const(1) else Const(0)
+        case StringLiteral(s) => mkString(s)
+        case UnitLiteral() => Const(0) <:> Drop
+        case Plus(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Add
+        case Times(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Mul
+        case AmyDiv(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Div
+        case Minus(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Sub
+        case Mod(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Rem
+        case LessThan(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Lt_s
+        case LessEquals(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Le_s
+        case AmyAnd(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> And
+        case AmyOr(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Or
+        case Equals(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Eq
+        case Concat(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Utils.concatImpl.code
+        case Not(e: Expr) => Const(0) <:> cgExpr(e) <:> Sub
+        case Neg(e: Expr) => cgExpr(e) <:> Eqz
+        case Sequence(e1: Expr, e2: Expr) => cgExpr(e1) <:> cgExpr(e2)
+        case Let(_, value: Expr, body: Expr) => cgExpr(value) <:> SetLocal(lh.getFreshLocal()) <:> cgExpr(body)
+        case Ite(cond: Expr, thenn: Expr, elze: Expr) =>
       }
     }
 
