@@ -75,6 +75,7 @@ object CodeGen extends Pipeline[(Program, SymbolTable), Module] {
         case AmyCall(qname: QualifiedName, args: List[Expr]) =>
           args.map(e => cgExpr(e))
           Call(qname.name)
+
       }
     }
 
