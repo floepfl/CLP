@@ -51,7 +51,6 @@
       };
 
       fetchAndInstantiate('wasmout/Test.wasm', importObject).then(function(instance) {
-        instance.exports.Factorial_main();
         instance.exports.Test_main();
       });
     </script>

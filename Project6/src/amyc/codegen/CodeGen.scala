@@ -54,7 +54,7 @@ object CodeGen extends Pipeline[(Program, SymbolTable), Module] {
         case IntLiteral(i) => Const(i)
         case BooleanLiteral(b) => if(b) Const(1) else Const(0)
         case StringLiteral(s) => mkString(s)
-        case UnitLiteral() => Const(0) <:> Drop
+        case UnitLiteral() => Const(0)
         case Plus(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Add
         case Times(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Mul
         case AmyDiv(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Div
@@ -65,16 +65,24 @@ object CodeGen extends Pipeline[(Program, SymbolTable), Module] {
         case AmyAnd(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> And
         case AmyOr(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Or
         case Equals(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Eq
-        case Concat(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Utils.concatImpl.code
+        case Concat(lhs: Expr, rhs: Expr) => cgExpr(lhs) <:> cgExpr(rhs) <:> Call(concatImpl.name)
         case Not(e: Expr) => Const(0) <:> cgExpr(e) <:> Sub
         case Neg(e: Expr) => cgExpr(e) <:> Eqz
-        case Sequence(e1: Expr, e2: Expr) => cgExpr(e1) <:> cgExpr(e2)
+        case Sequence(e1: Expr, e2: Expr) => cgExpr(e1) <:> Drop <:> cgExpr(e2)
         case Let(_, value: Expr, body: Expr) => cgExpr(value) <:> SetLocal(lh.getFreshLocal()) <:> cgExpr(body)
         case Ite(cond: Expr, thenn: Expr, elze: Expr) => cgExpr(cond) <:> If_i32 <:> cgExpr(thenn) <:> Else <:> cgExpr(elze) <:> End
-        case Error(msg: Expr) => cgExpr(msg) <:> Unreachable
+        case Error(msg: Expr) => cgExpr(msg) <:> Call("Std_printString") <:> Unreachable
         case AmyCall(qname: QualifiedName, args: List[Expr]) =>
-          args.map(e => cgExpr(e))
-          Call(qname.name)
+          if(table.getFunction(qname).isDefined) {
+            args.map(e => cgExpr(e))
+            Call(qname.name)
+          } else {
+            val formerMemBound = Utils.memoryBoundary
+            val constrSig = table.getConstructor(qname).get
+            val memBound = GetGlobal(memoryBoundary) <:> Const(args.size + 1) <:> Add <:> SetGlobal(memoryBoundary)
+            val index = Const(constrSig.index) <:> SetGlobal(formerMemBound)
+            val argz = args.zip(1 to args.size by 1).map(element => cgExpr(element._1) <:> SetGlobal(formerMemBound + element._2*4))
+          }
 
       }
     }
