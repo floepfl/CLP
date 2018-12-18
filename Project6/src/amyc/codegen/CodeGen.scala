@@ -77,13 +77,14 @@ object CodeGen extends Pipeline[(Program, SymbolTable), Module] {
             args.map(e => cgExpr(e))
             Call(qname.name)
           } else {
-            val formerMemBound = Utils.memoryBoundary
+            val oldMemBound = lh.getFreshLocal()
             val constrSig = table.getConstructor(qname).get
-            val memBound = GetGlobal(memoryBoundary) <:> Const(args.size + 1) <:> Add <:> SetGlobal(memoryBoundary)
-            val index = Const(constrSig.index) <:> SetGlobal(formerMemBound)
-            val argz = args.zip(1 to args.size by 1).map(element => cgExpr(element._1) <:> SetGlobal(formerMemBound + element._2*4))
+            val memBound = GetGlobal(memoryBoundary) <:> SetLocal(oldMemBound) <:> GetGlobal(memoryBoundary) <:> Const((args.size + 1) * 4) <:> Add <:> SetGlobal(memoryBoundary)
+            val index = GetLocal(oldMemBound) <:> Const(constrSig.index) <:> Store
+            val argz = args.zip(1 to args.size by 1).map(element => GetLocal(oldMemBound) <:> Const(element._2) <:> Add <:> cgExpr(element._1) <:> Store)
+            memBound <:> index <:> argz
           }
-
+        case
       }
     }
 

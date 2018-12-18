@@ -97,22 +97,112 @@
   )
   (export "Test_main" (func $Test_main))
   (func $Test_main (local i32 i32)
-    get_global 0
-    set_local 1
-    get_global 0
-    i32.const 8
-    i32.add
-    set_global 0
-    get_local 1
-    i32.const 0
-    i32.store
-    get_local 1
-    i32.const 4
-    i32.add
-    i32.const 3
-    i32.store
-    get_local 1
+    i32.const 5
     set_local 0
+    get_local 0
+    set_local 1
+    get_local 1
+    i32.const 3
+    i32.eq
+    if (result i32)
+      i32.const 0
+    else
+      get_local 1
+      i32.const 5
+      i32.eq
+      if (result i32)
+        i32.const 0
+      else
+        get_global 0
+        i32.const 0
+        i32.add
+        i32.const 77
+        i32.store8
+        get_global 0
+        i32.const 1
+        i32.add
+        i32.const 97
+        i32.store8
+        get_global 0
+        i32.const 2
+        i32.add
+        i32.const 116
+        i32.store8
+        get_global 0
+        i32.const 3
+        i32.add
+        i32.const 99
+        i32.store8
+        get_global 0
+        i32.const 4
+        i32.add
+        i32.const 104
+        i32.store8
+        get_global 0
+        i32.const 5
+        i32.add
+        i32.const 32
+        i32.store8
+        get_global 0
+        i32.const 6
+        i32.add
+        i32.const 101
+        i32.store8
+        get_global 0
+        i32.const 7
+        i32.add
+        i32.const 114
+        i32.store8
+        get_global 0
+        i32.const 8
+        i32.add
+        i32.const 114
+        i32.store8
+        get_global 0
+        i32.const 9
+        i32.add
+        i32.const 111
+        i32.store8
+        get_global 0
+        i32.const 10
+        i32.add
+        i32.const 114
+        i32.store8
+        get_global 0
+        i32.const 11
+        i32.add
+        i32.const 33
+        i32.store8
+        get_global 0
+        i32.const 12
+        i32.add
+        i32.const 0
+        i32.store8
+        get_global 0
+        i32.const 13
+        i32.add
+        i32.const 0
+        i32.store8
+        get_global 0
+        i32.const 14
+        i32.add
+        i32.const 0
+        i32.store8
+        get_global 0
+        i32.const 15
+        i32.add
+        i32.const 0
+        i32.store8
+        get_global 0
+        get_global 0
+        i32.const 16
+        i32.add
+        set_global 0
+        call $Std_printString
+        unreachable
+      end
+    end
+    drop
     i32.const 0
     drop
   )
